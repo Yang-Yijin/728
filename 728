@@ -1,0 +1,127 @@
+print("Start")
+
+from pubnub.pubnub import PubNub
+from pubnub.pnconfiguration import PNConfiguration
+import RPi.GPIO as GPIO
+import time
+import traceback
+import openai
+import uuid
+import sys
+import os
+
+# PubNub Configuration
+pnconfig = PNConfiguration()
+pnconfig.subscribe_key = 'yourkey'
+pnconfig.publish_key = 'yourkey'
+pnconfig.uuid = str(uuid.uuid4())
+pubnub = PubNub(pnconfig)
+
+# OpenAI API Key
+openai.api_key = 'yourkey'
+
+# GPIO Pins
+TRIG = 23
+ECHO = 24
+GREEN_LED = 17
+YELLOW_LED = 27
+RED_LED = 22
+
+# GPIO Setup
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(TRIG, GPIO.OUT)
+GPIO.setup(ECHO, GPIO.IN)
+GPIO.setup(GREEN_LED, GPIO.OUT)
+GPIO.setup(YELLOW_LED, GPIO.OUT)
+GPIO.setup(RED_LED, GPIO.OUT)
+
+# Function to measure distance
+def measure_distance():
+    GPIO.output(TRIG, True)
+    time.sleep(0.00001)
+    GPIO.output(TRIG, False)
+
+    while GPIO.input(ECHO) == 0:
+        pulse_start = time.time()
+    while GPIO.input(ECHO) == 1:
+        pulse_end = time.time()
+
+    pulse_duration = pulse_end - pulse_start
+    distance = (pulse_duration * 34300) / 2
+    return round(distance, 2)
+
+# Send message to PubNub
+def send_message(led, distance):
+    pubnub.publish().channel("yourchannel_728").message({"LED": led, "Distance": distance}).sync()
+
+# Log error to file
+def log_error(error_message):
+    with open("error_log.txt", "a") as f:
+        f.write(error_message + "\n")
+
+# Analyze error with ChatGPT
+def analyze_with_chatgpt():
+    with open("error_log.txt", "r") as f:
+        error_logs = f.read()
+    response = openai.ChatCompletion.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are an expert Python programmer."},
+            {"role": "user", "content": f"Analyze the following error logs and suggest a fix:\n{error_logs}"}
+        ]
+    )
+    suggested_fix = response['choices'][0]['message']['content']
+    print("\nChatGPT Suggested Fix:\n")
+    print(suggested_fix)
+    user_input = input("\nDo you want to apply this fix automatically? (yes/no): ").strip().lower()
+    if user_input == "yes":
+        apply_fix_and_restart(suggested_fix)
+
+# Apply fix and restart script
+def apply_fix_and_restart(suggested_fix):
+    try:
+        with open(__file__, "r") as f:
+            code = f.read()
+        with open(__file__, "w") as f:
+            f.write(suggested_fix)
+        print("\nFix applied! Restarting script...\n")
+        os.execv(sys.executable, ['python3'] + sys.argv)  # Restart script with fixed code
+    except Exception as e:
+        print(f"\nFailed to apply fix: {str(e)}\n")
+
+# Main loop
+try:
+    while True:
+        distance = measure_distance()
+        if distance > 20:
+            GPIO.output(GREEN_LED, True)
+            GPIO.output(YELLOW_LED, False)
+            GPIO.output(RED_LED, False)
+            send_message("GREEN", distance)
+        elif 10 < distance <= 20:
+            GPIO.output(GREEN_LED, False)
+            GPIO.output(YELLOW_LED, True)
+            GPIO.output(RED_LED, False)
+            send_message("YELLOW", distance)
+        else:
+            GPIO.output(GREEN_LED, False)
+            GPIO.output(YELLOW_LED, False)
+            GPIO.output(RED_LED, True)
+            send_message("RED", distance)
+        time.sleep(1)
+
+except ModuleNotFoundError as e:
+    error_message = str(e)
+    log_error(error_message)
+    print("\nModuleNotFoundError Detected!")
+    print("ChatGPT Suggests: Run the following command to install the missing module:")
+    print(f"{sys.executable} -m pip install {str(e).split()[-1]}")
+    analyze_with_chatgpt()
+
+except Exception as e:
+    error_message = traceback.format_exc()
+    log_error(error_message)
+    analyze_with_chatgpt()
+
+except KeyboardInterrupt:
+    GPIO.cleanup()
