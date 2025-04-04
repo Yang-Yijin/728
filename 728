@@ -10,15 +10,15 @@ import uuid
 import sys
 import os
 
-# PubNub Configuration
+# PubNub Configuration 
 pnconfig = PNConfiguration()
-pnconfig.subscribe_key = 'yourkey'
-pnconfig.publish_key = 'yourkey'
-pnconfig.uuid = str(uuid.uuid4())
+pnconfig.subscribe_key = 'sub-c-51de2d8f-af32-41aa-83ef-46da37a09f68'
+pnconfig.publish_key = 'pub-c-58c07a0a-9066-43bf-a8b7-3828f2dc00d3'
+pnconfig.uuid = "Yang728"
 pubnub = PubNub(pnconfig)
 
 # OpenAI API Key
-openai.api_key = 'yourkey'
+openai.api_key = 'yourkey'  # ⚠️ 替换成你的 OpenAI Key
 
 # GPIO Pins
 TRIG = 23
@@ -52,7 +52,7 @@ def measure_distance():
 
 # Send message to PubNub
 def send_message(led, distance):
-    pubnub.publish().channel("yourchannel_728").message({"LED": led, "Distance": distance}).sync()
+    pubnub.publish().channel("y728").message({"LED": led, "Distance": distance}).sync()
 
 # Log error to file
 def log_error(error_message):
